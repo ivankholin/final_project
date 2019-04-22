@@ -7,50 +7,54 @@ from bpemb import BPEmb
 from tensorflow.contrib import predictor
 
 class Model():
-    '''класс модели
-        производит загрузку модели и расстановку пунктуации в предложении    
-    ''' 
-    def __init__(self, export_dir, vocab_size = 3000, emb_dim = 20, dict_punct = {1:2922, 2:2921, 3:2978, 4:2985, 5:2947, 6:2963}):
-    self.vocab_size = vocab_size
-    self.emb_dim = emb_dim
-    self.bpemb_ru = BPEmb(lang='ru', vs=vocab_size , dim=emb_dim)
+	'''
+	класс модели
+	производит загрузку модели и расстановку пунктуации в предложении    
+	''' 
+	def __init__(self, export_dir, vocab_size = 5000, emb_dim=200, dict_punct = None):
+		self.vocab_size = vocab_size
+		self.emb_dim = emb_dim
 
-    self.export_dir = export_dir
-    self.predict_fn = predictor.from_saved_model(export_dir)
+		self.bpemb_ru = BPEmb(lang='ru', vs=vocab_size , dim=emb_dim)
 
-    self.d = dict_punct
+		self.export_dir = export_dir
+		self.predict_fn = predictor.from_saved_model(export_dir)
+		if dict_punct is None:
+			self.d = {1:4922, 2:4921, 3:4978, 4:4985, 5:4947, 6:4963, 7:4936}
+		else:
+			self.d = dict_punct
 
-    def parse_fn(self, line, bpemb = bpemb_ru):
-        '''
-            функция кодировки строки:
-            line- строка
-        '''
-        feature = np.array([bpemb.encode_ids(line)]).astype(np.int32)
-        return feature, np.array([len(feature[0])])
+	def parse_fn(self, line):
+		'''
+		функция кодировки строки:
+		line- строка
+		'''
+		feature = np.array([self.bpemb_ru.encode_ids(line)]).astype(np.int32)
+		return feature, np.array([len(feature[0])])
 
-    def to_capital_latter(self, sentence):
-        '''фукция, переводящая прописные буквы в заглавные после точки'''
-        tmp = ''
-        flag = True
-        for c in sentence:
-            if flag and c != ' ':
-                tmp += c.upper()
-                flag = False
-            else:
-                tmp += c
-            if c in '.?!':
-                flag = True
-        return tmp
+	def to_capital_latter(self, sentence):
+		'''фукция, переводящая прописные буквы в заглавные после точки'''
+		tmp = ''
+		flag = True
+		for c in sentence:
+			if flag and c != ' ':
+				tmp += c.upper()
+				flag = False
+			else:
+				tmp += c
+			if c in '.?!':
+				flag = True
+		return tmp
 
-    def predict(self, line):
-        x, x_len = self.parse_fn(line)
-        predict = self.predict_fn({'x':x, 'len':x_len })
-        a = []
-        for i in range(predict['lengths'][0]):
-            a.append(predict['sequences'][0][i])
-            if predict['prediction'][0][i] != 0:
-                a.append(self.d[predict['prediction'][0][i]])
-        return self.to_capital_latter(self.bpemb_ru.decode_ids(np.array(a)))
+	def predict(self, line):
+		x, x_len = self.parse_fn(line)
+		predict = self.predict_fn({'x':x, 'len':x_len })
+		a = []
+		for i in range(predict['lengths'][0]):
+			a.append(predict['sequences'][0][i])
+			if predict['prediction'][0][i] != 0:
+				a.append(self.d[predict['prediction'][0][i]])
+		return self.to_capital_latter(self.bpemb_ru.decode_ids(np.array(a)))
 
 def startCommand(bot, update):
     print(update.effective_user)
@@ -64,7 +68,7 @@ def textMessage(bot, update, model):
     bot.send_message(chat_id=update.message.chat_id, text=response)
 
 
-def main()
+def main():
     model = Model('model/1555944853')
 
     updater = Updater(token=config.token)
